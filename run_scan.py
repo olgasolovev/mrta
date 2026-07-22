@@ -28,6 +28,7 @@ from mrta.solver import Params, kappa_n
 
 
 def main():
+    """! @brief Parse scan options, compute requested responses, and write JSON."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--spectrum", default="flat",
                     choices=["flat", "diff", "mcdiff", "mixed"])
@@ -35,7 +36,10 @@ def main():
     ap.add_argument("--g", type=float, required=True, help="ghat_2 rate scale (opacity knob)")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--harmonics", type=int, nargs="+", default=[2, 3, 4])
-    ap.add_argument("--delta", type=float, default=0.04, help="perturbation amplitude beta_n")
+    ap.add_argument("--delta", type=float, default=None,
+                    help="perturbation amplitude beta_n; default is per-harmonic "
+                         "{2: 0.04, 3: 0.01, 4: 0.002}, chosen so |eps_n| < 0.07 "
+                         "and the response is linear to <1%% even at g = 8")
     ap.add_argument("--Nx", type=int, default=192)
     ap.add_argument("--Nphi", type=int, default=128)
     ap.add_argument("--L", type=float, default=10.0)
@@ -56,23 +60,31 @@ def main():
                   alpha=args.alpha, bjorken=not args.no_bjorken,
                   spectrum=args.spectrum, b_over_a=args.b_over_a)
 
+    default_delta = {2: 0.04, 3: 0.01, 4: 0.002}
+    delta_by_harmonic = {
+        str(n): args.delta if args.delta is not None else default_delta.get(n, 0.04)
+        for n in args.harmonics
+    }
+
     record = {"spectrum": args.spectrum, "b_over_a": args.b_over_a,
               "g": args.g, "alpha": args.alpha,
               "bjorken": not args.no_bjorken, "one_hit": args.one_hit,
               "Nx": args.Nx, "Nphi": args.Nphi, "L": args.L,
               "tau0": args.tau0, "tau_max": args.tau_max, "dt": args.dt,
-              "delta": args.delta, "kappa": {}, "eps": {},
+              "delta": args.delta, "delta_by_harmonic": delta_by_harmonic,
+              "ic": "squared", "kappa": {}, "eps": {},
               "linearity_dev": {}}
 
     for n in args.harmonics:
         t0 = time.time()
-        kap, eps, _ = kappa_n(base, n, args.delta, one_hit=args.one_hit,
+        delta_n = delta_by_harmonic[str(n)]
+        kap, eps, _ = kappa_n(base, n, delta_n, one_hit=args.one_hit,
                               store_every=10**9)
         record["kappa"][str(n)] = kap
         record["eps"][str(n)] = eps
         msg = f"  n={n}: kappa = {kap:+.6e}  (eps = {eps:+.4e}, {time.time()-t0:.0f}s)"
         if args.linearity_check:
-            kap2, _, _ = kappa_n(base, n, args.delta / 2, one_hit=args.one_hit,
+            kap2, _, _ = kappa_n(base, n, delta_n / 2, one_hit=args.one_hit,
                                  store_every=10**9)
             dev = abs(kap2 / kap - 1.0)
             record["linearity_dev"][str(n)] = dev

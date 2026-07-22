@@ -1,0 +1,23 @@
+# Doxyfile for the MRTA repository (Python).  Run:  doxygen Doxyfile
+PROJECT_NAME           = "MRTA: Mode-Resolved Relaxation-Time Approximation"
+PROJECT_BRIEF          = "2D kinetic-theory solvers and the non-separable \
+leading-log QCD (Fokker-Planck) benchmark"
+OUTPUT_DIRECTORY       = docs
+INPUT                  = mrta run_scan_fp.py run_local_suite.py \
+                         run_ir_robustness.py run_chi2_matched.py \
+                         run_alpha13.py run_localT.py run_gainproj.py \
+                         run_pbins.py analyze_fp.py analyze_extended.py \
+                         make_fig_chi2.py make_fig_alpha13.py \
+                         make_fig_localT.py make_fig_pbins.py tests
+FILE_PATTERNS          = *.py
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+OPTIMIZE_OUTPUT_JAVA   = YES
+PYTHON_DOCSTRING       = YES
+GENERATE_LATEX         = NO
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+USE_MATHJAX            = YES
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
