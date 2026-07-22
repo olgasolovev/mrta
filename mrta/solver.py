@@ -55,13 +55,20 @@ from numba import njit, prange
 
 @dataclass
 class Params:
+    """! @brief Numerical and physical parameters for an MRTA evolution."""
     ## @brief geometry / initial state (units: R = 1, Etot = 1)
     R: float = 1.0
     Etot: float = 1.0
     n_ecc: int = 2          #< harmonic of the eccentric perturbation
-    beta: float = 0.0       #< perturbation amplitude beta_n  (Eq. eccentric Gaussian)
+    beta: float = 0.0       #< perturbation amplitude beta_n
+    ic: str = "squared"     #< 'squared': positive-definite perfect-square family
+                            ## @brief E0 = Gauss * [1 + (beta/2)(r/R)^n cos n th]^2
+                            # (positive for all beta, smooth, same linear-order
+                            # eccentricity as the additive family)
+                            # 'additive': legacy Gauss * [1 + beta (r/R)^n cos n th]
+                            # (goes negative at large r; kept for the V1 oracle)
 
-    ## @brief grid
+    # grid
     L: float = 9.0          #< half box size (units of R)
     Nx: int = 128
     Nphi: int = 64
@@ -219,7 +226,14 @@ def _equilibrium_field(e, tx, ty, txx, txy, tyy, cphi, sphi, valid, out,
 # ----------------------------------------------------------------------------
 
 class Solver:
+    """! @brief Evolve the two-dimensional mode-resolved transport equation."""
+
     def __init__(self, par: Params):
+        """!
+        @brief Construct grids, relaxation rates, and the initial distribution.
+        @param par Complete solver configuration.
+        @throws ValueError If the requested initial-condition family is unknown.
+        """
         self.par = par
         p = par
 
@@ -252,8 +266,13 @@ class Solver:
         ## @brief initial condition: eccentric Gaussian, isotropic in momentum
         prof = (p.Etot / (2.0 * np.pi * p.R**2)) * np.exp(-self.rr**2 / (2.0 * p.R**2))
         if p.beta != 0.0:
-            prof = prof * (1.0 + p.beta * (self.rr / p.R)**p.n_ecc
-                           * np.cos(p.n_ecc * self.th))
+            mod = (self.rr / p.R)**p.n_ecc * np.cos(p.n_ecc * self.th)
+            if p.ic == "squared":
+                prof = prof * (1.0 + 0.5 * p.beta * mod)**2
+            elif p.ic == "additive":
+                prof = prof * (1.0 + p.beta * mod)
+            else:
+                raise ValueError(f"unknown ic family '{p.ic}'")
         self.E0 = prof
         self.e_ref = p.Etot / (2.0 * np.pi * p.R**2)   #< background central density
         self.Phi = np.repeat(prof[:, :, None], p.Nphi, axis=2) / (2.0 * np.pi)
@@ -300,6 +319,12 @@ class Solver:
         return F, Feq, e, valid
 
     def _rate_field(self, e, tau_mid):
+        """!
+        @brief Evaluate the local collision-rate field.
+        @param e Lab-frame energy-density field.
+        @param tau_mid Time at the center of the collision substep.
+        @return Local mode-two relaxation rate.
+        """
         p = self.par
         r = p.g * np.clip(e / self.e_ref, 0.0, None) ** p.alpha
         if p.bjorken:
@@ -358,6 +383,13 @@ class Solver:
     ## @brief -- driver --------------------------------------------------------------
 
     def run(self, one_hit=False, store_every=10, verbose=False):
+        """!
+        @brief Advance the transport solution through the requested time range.
+        @param one_hit Accumulate the leading-opacity master formula when true.
+        @param store_every Store observables after this many full steps.
+        @param verbose Print stored harmonic observables when true.
+        @return Dictionary containing parameters, times, harmonics, and conserved quantities.
+        """
         p = self.par
         nsteps = int(round((p.tau_max - p.tau0) / p.dt))
         acc = np.zeros(self.par.n_harm_obs + 1, dtype=np.complex128) if one_hit else None

@@ -50,6 +50,11 @@ def eps_gaussian(n: int, beta: float) -> float:
 
 
 def _fact(n):
+    """!
+    @brief Compute an integer factorial without relying on NumPy internals.
+    @param n Nonnegative integer argument.
+    @return Factorial of n.
+    """
     out = 1
     for k in range(2, n + 1):
         out *= k
@@ -58,6 +63,12 @@ def _fact(n):
 
 ## @brief make eps_gaussian robust across numpy versions
 def eps_gaussian(n: int, beta: float) -> float:  # noqa: F811
+    """!
+    @brief Compute the linear-order eccentricity of the eccentric Gaussian.
+    @param n Harmonic order.
+    @param beta Perturbation amplitude.
+    @return Closed-form eccentricity epsilon_n.
+    """
     return -beta * 2.0**(n / 2.0 - 1.0) * _fact(n) / Gamma(n / 2 + 1)
 
 
